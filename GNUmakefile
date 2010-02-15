@@ -17,7 +17,15 @@ endif
 LDFLAGS = -L. -L/usr/local/lib
 LDLIBS = -lpthread 
 ifeq ($(LAB2GE),1)
+ifeq ($(shell uname -s),Darwin)
+ifeq ($(shell sw_vers -productVersion | sed -e "s/.*\(10\.[0-9]\).*/\1/"),10.6)
+LDLIBS += -lfuse_ino64
+else
 LDLIBS += -lfuse
+endif
+else
+LDLIBS += -lfuse
+endif
 endif
 LDLIBS += $(shell test -f `gcc -print-file-name=librt.so` && echo -lrt)
 LDLIBS += $(shell test -f `gcc -print-file-name=libdl.so` && echo -ldl)
