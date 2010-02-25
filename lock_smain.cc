@@ -30,9 +30,12 @@ main(int argc, char *argv[])
 
   //jsl_set_debug(2);
 
+#ifndef RSM
   lock_server ls;
   rpcs server(atoi(argv[1]), count);
   server.reg(lock_protocol::stat, &ls, &lock_server::stat);
+#endif
+
 
   while(1)
     sleep(1000);
