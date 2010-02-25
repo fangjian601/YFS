@@ -36,7 +36,6 @@ main(int argc, char *argv[])
   server.reg(lock_protocol::stat, &ls, &lock_server::stat);
 #endif
 
-
   while(1)
     sleep(1000);
 }
