@@ -1,4 +1,4 @@
-LAB=6
+LAB=7
 SOL=0
 RPC=./rpc
 LAB2GE=$(shell expr $(LAB) \>\= 2)
@@ -32,7 +32,7 @@ LDLIBS += $(shell test -f `gcc -print-file-name=libdl.so` && echo -ldl)
 CC = g++
 CXX = g++
 
-lab:  lab6
+lab:  lab7
 lab1: rpc/rpctest lock_server lock_tester lock_demo
 lab2: yfs_client extent_server
 lab3: yfs_client extent_server
@@ -41,7 +41,7 @@ lab5: yfs_client extent_server lock_server lock_tester test-lab-4-b\
 	 test-lab-4-c
 lab6: yfs_client extent_server lock_server test-lab-4-b test-lab-4-c
 lab7: lock_server
-lab8: lock_tester lock_server
+lab8: lock_tester lock_server rsm_tester
 
 hfiles1=rpc/fifo.h rpc/connection.h rpc/rpc.h rpc/marshall.h rpc/method_thread.h\
 	rpc/thr_pool.h rpc/pollmgr.h rpc/jsl_log.h rpc/slock.h rpc/rpctest.cc\
@@ -103,6 +103,9 @@ test-lab-4-b:  $(patsubst %.c,%.o,$(test_lab_4-b)) rpc/librpc.a
 test-lab-4-c=test-lab-4-c.c
 test-lab-4-c:  $(patsubst %.c,%.o,$(test_lab_4-c)) rpc/librpc.a
 
+rsm_tester=rsm_tester.cc rsmtest_client.cc
+rsm_tester:  $(patsubst %.c,%.o,$(rsm_tester)) rpc/librpc.a
+
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
@@ -150,28 +153,31 @@ l5:
 	 $(test-lab-4-b) $(test-lab-4-c)
 
 l5-sol:
-	./mklab.pl 5 5 l5-sol GNUmakefile test-lab-4-a.pl $(yfs_client) $(rpclib) $(rpctest) $(lock_server)\
+	./mklab.pl 5 5 l5-sol GNUmakefile test-lab-4-a.pl $(yfs_client) $(rpclib) $(rpctest)\
 	 $(extent_server) $(lock_server) start.sh stop.sh test-lab-2.pl \
 	 mkfs.sh $(hfiles1) $(hfiles2) $(hfiles3) $(lock_tester) \
 	 $(test-lab-4-b) $(test-lab-4-c)
 
 
 l6:
-	./mklab.pl 6 0 l6 GNUmakefile test-lab-4-a.pl $(rpclib) $(yfs_client) $(rpctest) $(lock_server)\
+	./mklab.pl 6 0 l6 GNUmakefile test-lab-4-a.pl $(rpclib) $(yfs_client) $(rpctest)\
 	 $(extent_server) $(lock_server) start.sh stop.sh test-lab-2.pl mkfs.sh\
 	 $(hfiles1) $(hfiles2) $(hfiles3) $(lock_tester) $(test-lab-4-b) $(test-lab-4-c)
 
 l6-sol:
-	./mklab.pl 6 6 l6-sol GNUmakefile test-lab-4-a.pl $(yfs_client) $(rpclib) $(rpctest) $(lock_server)\
+	./mklab.pl 6 6 l6-sol GNUmakefile test-lab-4-a.pl $(yfs_client) $(rpclib) $(rpctest)\
 	 $(extent_server) $(lock_server) start.sh stop.sh test-lab-2.pl mkfs.sh\
 	 $(hfiles1) $(hfiles2) $(hfiles3) $(lock_tester) $(test-lab-4-b) $(test-lab-4-c)
 
 
 l7:
-	./mklab.pl 7 0 l7 GNUmakefile rsm_tester.pl $(rpclib) $(rsm_files) $(hfiles4) lock_smain.cc
+	./mklab.pl 7 0 l7 GNUmakefile rsm_tester.pl $(yfs_client) $(rpclib) $(rpctest)\
+		$(extent_server) $(lock_server) start.sh stop.sh test-lab-2.pl mkfs.sh\
+		$(hfiles1) $(hfiles2) $(hfiles3) $(lock_tester) $(test-lab-4-b) $(test-lab-4-c)\
+		rsm_tester.pl $(rsm_files) $(hfiles4) 
 
 l7-sol:
-	./mklab.pl 7 7 l7-sol GNUmakefile test-lab-4-a.pl $(yfs_client) $(rpclib) $(rpctest) $(lock_server) \
+	./mklab.pl 7 7 l7-sol GNUmakefile test-lab-4-a.pl $(yfs_client) $(rpclib) $(rpctest)\
 		$(extent_server) $(lock_server) start.sh stop.sh test-lab-2.pl mkfs.sh\
 		$(hfiles1) $(hfiles2) $(hfiles3) $(lock_tester) $(test-lab-4-b) $(test-lab-4-c)\
 		rsm_tester.pl $(rsm_files) $(hfiles4) 
@@ -180,7 +186,7 @@ l8:
 	./mklab.pl 8 0 l8 GNUmakefile rsm_client.cc $(rpclib) $(hfiles5) rsm.cc rsm.h
 
 l8-sol:
-	./mklab.pl 8 8 l8-sol GNUmakefile test-lab-4-a.pl $(yfs_client) $(rpclib) $(rpctest) $(lock_server) \
+	./mklab.pl 8 8 l8-sol GNUmakefile test-lab-4-a.pl $(yfs_client) $(rpclib) $(rpctest)\
 		$(extent_server) $(lock_server) start.sh stop.sh test-lab-2.pl mkfs.sh\
 		$(hfiles1) $(hfiles2) $(hfiles3) $(lock_tester) $(test-lab-4-b) $(test-lab-4-c)\
 		rsm_tester.pl $(rsm_files) $(hfiles4) rsm_client.cc $(hfiles5) 
