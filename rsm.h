@@ -59,7 +59,6 @@ class rsm : public config_view_change {
   bool join(std::string m);
   void set_primary();
   std::string find_highest(viewstamp &vs, std::string &m, unsigned &vid);
-  void start_change(std::string m, bool add);
   bool sync_with_backups();
   bool sync_with_primary();
   bool amiprimary_wo();
