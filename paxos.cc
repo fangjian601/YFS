@@ -95,7 +95,6 @@ proposer::run(int instance, std::vector<std::string> newnodes, std::string newv)
   bool r = false;
 
   pthread_mutex_lock(&pxs_mutex);
-  // initiate Paxos by signaling manager thread
   printf("start: initiate paxos for %s w. i=%d v=%s stable=%d\n",
 	 print_members(newnodes).c_str(), instance, newv.c_str(), stable);
   if (!stable) {  // already running proposer?
