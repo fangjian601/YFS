@@ -17,7 +17,6 @@ class rsm : public config_view_change {
   std::map<int, handler *> procs;
   config *cfg;
   class rsm_state_transfer *stf;
-  std::map<std::string, rpcc *> cl;
   rpcs *rsmrpc;
   viewstamp myvs;
   viewstamp last_myvs;
