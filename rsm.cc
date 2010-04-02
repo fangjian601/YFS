@@ -229,7 +229,6 @@ rsm::commit_change()
   pthread_mutex_lock(&rsm_mutex);
   // Lab 7:
   // - If I am not part of the new view, start recovery
-  // - Notify any joiners if they were successful
   pthread_mutex_unlock(&rsm_mutex);
 }
 
