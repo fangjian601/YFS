@@ -83,6 +83,7 @@
 
 #include "handle.h"
 #include "rsm.h"
+#include "rsm_client.h"
 
 static void *
 recoverythread(void *x)
@@ -132,6 +133,13 @@ rsm::rsm(std::string _first, std::string _me)
   assert(pthread_mutex_unlock(&rsm_mutex)==0);
 }
 
+void
+rsm::reg1(int proc, handler *h)
+{
+  assert(pthread_mutex_lock(&rsm_mutex)==0);
+  procs[proc] = h;
+  assert(pthread_mutex_unlock(&rsm_mutex)==0);
+}
 
 // The recovery thread runs this function
 void
@@ -182,7 +190,28 @@ rsm::sync_with_primary()
 bool
 rsm::statetransfer(std::string m)
 {
-  // For lab 8
+  rsm_protocol::transferres r;
+  handle h(m);
+  int ret;
+  printf("rsm::statetransfer: contact %s w. my last_myvs(%d,%d)\n", 
+	 m.c_str(), last_myvs.vid, last_myvs.seqno);
+  if (h.get_rpcc()) {
+    assert(pthread_mutex_unlock(&rsm_mutex)==0);
+    ret = h.get_rpcc()->call(rsm_protocol::transferreq, cfg->myaddr(), 
+			     last_myvs, r, rpcc::to(1000));
+    assert(pthread_mutex_lock(&rsm_mutex)==0);
+  }
+  if (h.get_rpcc() == 0 || ret != rsm_protocol::OK) {
+    printf("rsm::statetransfer: couldn't reach %s %lx %d\n", m.c_str(), 
+	   (long unsigned) h.get_rpcc(), ret);
+    return false;
+  }
+  if (stf && last_myvs != r.last) {
+    stf->unmarshal_state(r.state);
+  }
+  last_myvs = r.last;
+  printf("rsm::statetransfer transfer from %s success, vs(%d,%d)\n", 
+	 m.c_str(), last_myvs.vid, last_myvs.seqno);
   return true;
 }
 
@@ -233,6 +262,21 @@ rsm::commit_change()
 }
 
 
+std::string
+rsm::execute(int procno, std::string req)
+{
+  printf("execute\n");
+  handler *h = procs[procno];
+  assert(h);
+  unmarshall args(req);
+  marshall rep;
+  std::string reps;
+  rsm_protocol::status ret = h->fn(args, rep);
+  marshall rep1;
+  rep1 << ret;
+  rep1 << rep.str();
+  return rep1.str();
+}
 
 //
 // Clients call client_invoke to invoke a procedure on the replicated state
@@ -271,7 +315,11 @@ rsm::transferreq(std::string src, viewstamp last, rsm_protocol::transferres &r)
 {
   assert(pthread_mutex_lock(&rsm_mutex)==0);
   int ret = rsm_protocol::OK;
-  // For lab 8
+  printf("transferreq from %s (%d,%d) vs (%d,%d)\n", src.c_str(), 
+	 last.vid, last.seqno, last_myvs.vid, last_myvs.seqno);
+  if (stf && last != last_myvs) 
+    r.state = stf->marshal_state();
+  r.last = last_myvs;
   assert(pthread_mutex_unlock(&rsm_mutex)==0);
   return ret;
 }
@@ -427,6 +475,16 @@ rsm::breakpoint2()
   if (break2) {
     printf("Dying at breakpoint 2 in rsm!\n");
     exit(1);
+  }
+}
+
+void 
+rsm::partition1()
+{
+  if (dopartition) {
+    net_repair_wo(false);
+    dopartition = false;
+    partitioned = true;
   }
 }
 
