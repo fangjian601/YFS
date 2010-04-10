@@ -67,6 +67,7 @@ class rsm : public config_view_change {
   void net_repair_wo(bool heal);
   void breakpoint1();
   void breakpoint2();
+  void partition1();
  public:
   rsm (std::string _first, std::string _me);
   ~rsm() {};
