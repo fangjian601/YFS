@@ -14,7 +14,8 @@ class extent_protocol {
     put = 0x6001,
     get,
     getattr,
-    remove
+    remove,
+    exist
   };
   static const unsigned int maxextent = 8192*1000;
 

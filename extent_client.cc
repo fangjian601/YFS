@@ -54,4 +54,11 @@ extent_client::remove(extent_protocol::extentid_t eid)
   return ret;
 }
 
+extent_protocol::status
+extent_client::exist(extent_protocol::extentid_t eid, int& isexist)
+{
+  extent_protocol::status ret = extent_protocol::OK;
+  ret = cl->call(extent_protocol::exist, eid, isexist);
+  return ret;
+}
 
