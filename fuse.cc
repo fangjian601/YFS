@@ -18,6 +18,8 @@
 #include <arpa/inet.h>
 #include "yfs_client.h"
 
+#include <set>
+
 int myid;
 yfs_client *yfs;
 
@@ -100,12 +102,24 @@ void
 fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
       off_t off, struct fuse_file_info *fi)
 {
-  // You fill this in
-#if 0
-  fuse_reply_buf(req, buf, size);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+	// You fill this in
+	yfs_client::inum inumber = ino;
+	std::string buf;
+	if(yfs->get(inumber,buf) == yfs_client::IOERR){
+		fuse_reply_err(req,ENOENT);
+	}
+	else{
+		if(off < 0 || off >= buf.size() || size < 0){
+			fuse_reply_err(req,EIO);
+		}
+		else if(off+size <= buf.size()){
+			fuse_reply_buf(req,buf.substr(off,size).c_str(),size);
+		}
+		else{
+			fuse_reply_buf(req,buf.substr(off,buf.size()-off).c_str(),buf.size()-off);
+		}
+	}
+
 }
 
 void
@@ -113,20 +127,75 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   const char *buf, size_t size, off_t off,
   struct fuse_file_info *fi)
 {
-  // You fill this in
-#if 0
-  fuse_reply_write(req, bytes_written);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+	// You fill this in
+	yfs_client::inum inumber = ino;
+	std::string data;
+	if(yfs->get(inumber,data) == yfs_client::IOERR){
+		fuse_reply_err(req,ENOENT);
+	}
+	else{
+		std::stringstream sstr;
+		if(off < 0 || off >= data.size() || size < 0){
+			fuse_reply_err(req,EIO);
+		}
+		else{
+			sstr << data.substr(0,off+1);
+			sstr << buf;
+			if(off+size < data.size()){
+				sstr << data.substr(off+size,data.size()-off-size);
+			}
+			if(yfs->put(inumber,sstr.str()) == yfs_client::IOERR){
+				fuse_reply_err(req,EIO);
+			}
+			else{
+				fuse_reply_write(req,size);
+			}
+		}
+	}
 }
 
 yfs_client::status
 fuseserver_createhelper(fuse_ino_t parent, const char *name,
      mode_t mode, struct fuse_entry_param *e)
 {
-  // You fill this in
-  return yfs_client::NOENT;
+	// You fill this in
+	fuse_ino_t new_ino;
+	new_ino = rand() | 0x80000000;
+	while(yfs->exist(new_ino)){
+		new_ino = rand() | 0x80000000;
+	}
+
+	printf("get new inum 0x%x\n", (unsigned int) new_ino);
+
+	std::string buf;
+	std::string parent_buf;
+	if(yfs->put(new_ino,buf) == yfs_client::IOERR){
+		return yfs_client::IOERR;
+	}
+
+	std::stringstream sstr;
+	if(yfs->get(parent,parent_buf) == yfs_client::IOERR){
+		return yfs_client::IOERR;
+	}
+
+	sstr << parent_buf;
+	sstr << new_ino << " " << name << "\n";
+
+	printf("parent buf: %s\n", sstr.str().c_str());
+
+	if(yfs->put(parent,sstr.str()) == yfs_client::IOERR){
+		return yfs_client::IOERR;
+	}
+
+	struct stat st;
+	getattr(new_ino,st);
+	e->ino = new_ino;
+	e->generation = 1;
+	e->attr = st;
+	e->attr_timeout = 0.0;
+	e->entry_timeout = 0.0;
+
+	return yfs_client::OK;
 }
 
 void
@@ -154,21 +223,29 @@ void fuseserver_mknod( fuse_req_t req, fuse_ino_t parent,
 void
 fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
-  struct fuse_entry_param e;
-  bool found = false;
+	struct fuse_entry_param e;
+	bool found = false;
 
-  e.attr_timeout = 0.0;
-  e.entry_timeout = 0.0;
+	e.attr_timeout = 0.0;
+	e.entry_timeout = 0.0;
 
-  // You fill this in:
-  // Look up the file named `name' in the directory referred to by
-  // `parent' in YFS. If the file was found, initialize e.ino and
-  // e.attr appropriately.
+	// You fill this in:
+	// Look up the file named `name' in the directory referred to by
+	// `parent' in YFS. If the file was found, initialize e.ino and
+	// e.attr appropriately.
 
-  if (found)
-    fuse_reply_entry(req, &e);
-  else
-    fuse_reply_err(req, ENOENT);
+	yfs_client::inum inumber = yfs->ilookup(parent,name);
+	found = (inumber != 0)?true:false;
+
+	if (found){
+		struct stat st;
+		getattr(inumber,st);
+		e.ino = inumber;
+		e.attr = st;
+		fuse_reply_entry(req, &e);
+	}
+	else
+		fuse_reply_err(req, ENOENT);
 }
 
 
@@ -203,25 +280,42 @@ void
 fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
           off_t off, struct fuse_file_info *fi)
 {
-  yfs_client::inum inum = ino; // req->in.h.nodeid;
-  struct dirbuf b;
-  yfs_client::dirent e;
+	yfs_client::inum inum = ino; // req->in.h.nodeid;
+	struct dirbuf b;
+	yfs_client::dirent e;
 
-  printf("fuseserver_readdir\n");
+	printf("fuseserver_readdir\n");
 
- if(!yfs->isdir(inum)){
-    fuse_reply_err(req, ENOTDIR);
-    return;
-  }
+	if(!yfs->isdir(inum)){
+		fuse_reply_err(req, ENOTDIR);
+		return;
+	}
 
-  memset(&b, 0, sizeof(b));
-
-
-   // fill in the b data structure using dirbuf_add
+	memset(&b, 0, sizeof(b));
 
 
-   reply_buf_limited(req, b.p, b.size, off, size);
-   free(b.p);
+	// fill in the b data structure using dirbuf_add
+	std::string parent_buf;
+	if(yfs->get(ino,parent_buf) == yfs_client::IOERR){
+		fuse_reply_err(req,ENOENT);
+	}
+	else{
+		std::vector<std::string> entries = yfs_client::split(parent_buf,"\n",true,false);
+
+		for(unsigned int i = 0; i < entries.size(); i++){
+			std::string entry = entries[i];
+			std::vector<std::string> info = yfs_client::split(entry," ", true,false);
+			if(info.size() != 2){
+				fuse_reply_err(req,ENOENT);
+			}
+			yfs_client::inum temp_inum = yfs_client::n2i(info[0]);
+			std::string temp_name = info[1];
+			dirbuf_add(&b,temp_name.c_str(),temp_inum);
+		}
+
+		reply_buf_limited(req, b.p, b.size, off, size);
+		free(b.p);
+	}
  }
 
 
@@ -230,11 +324,7 @@ fuseserver_open(fuse_req_t req, fuse_ino_t ino,
      struct fuse_file_info *fi)
 {
   // You fill this in
-#if 0
-  fuse_reply_open(req, fi);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+	fuse_reply_open(req, fi);
 }
 
 void
