@@ -11,10 +11,11 @@
 
 class yfs_client {
 	extent_client *ec;
+	lock_client * lc;
 public:
 
 	typedef unsigned long long inum;
-	enum xxstatus { OK, RPCERR, NOENT, IOERR, FBIG };
+	enum xxstatus { OK, RPCERR, NOENT, IOERR, FBIG, EXIST};
 	typedef int status;
 
 	struct fileinfo {
@@ -53,6 +54,9 @@ public:
 	int putattr(inum eid, extent_protocol::attr a);
 	int remove(inum);
 	bool exist(inum);
+
+	void acquire(inum);
+	void release(inum);
 
 	typedef std::string::size_type (std::string::*find_t)(const std::string& delim, std::string::size_type offset) const;
 	static std::vector<std::string> split(const std::string& s, const std::string& match, bool removeEmpty,bool fullMatch);

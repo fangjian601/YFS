@@ -14,6 +14,7 @@
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
 	ec = new extent_client(extent_dst);
+	lc = new lock_client(lock_dst);
 
 }
 
@@ -53,6 +54,7 @@ yfs_client::getfile(inum inum, fileinfo &fin)
 {
 	int r = OK;
 
+	lc->acquire(inum);
 
 	printf("getfile %016llx\n", inum);
 	extent_protocol::attr a;
@@ -67,8 +69,8 @@ yfs_client::getfile(inum inum, fileinfo &fin)
 	fin.size = a.size;
 	printf("getfile %016llx -> sz %llu\n", inum, fin.size);
 
-	release:
-
+release:
+	lc->release(inum);
 	return r;
 }
 
@@ -77,6 +79,7 @@ yfs_client::getdir(inum inum, dirinfo &din)
 {
 	int r = OK;
 
+	lc->acquire(inum);
 
 	printf("getdir %016llx\n", inum);
 	extent_protocol::attr a;
@@ -88,7 +91,8 @@ yfs_client::getdir(inum inum, dirinfo &din)
 	din.mtime = a.mtime;
 	din.ctime = a.ctime;
 
-	release:
+release:
+	lc->release(inum);
 	return r;
 }
 
@@ -106,10 +110,8 @@ yfs_client::inum yfs_client::ilookup(inum di, std::string name){
 		if(info.size() != 2)return 0;
 		inum temp_inum = n2i(info[0]);
 		std::string temp_name = info[1];
-		if(isfile(temp_inum)){
-			if(temp_name == name) return temp_inum;
-			else continue;
-		}
+		if(temp_name == name) return temp_inum;
+		else continue;
 	}
 	return 0;
 
@@ -131,16 +133,16 @@ int yfs_client::put(inum i, std::string buf){
 	else return IOERR;
 }
 
-int yfs_client::getattr(inum edi, extent_protocol::attr& a){
-	extent_protocol::status ret = ec->getattr(edi,a);
+int yfs_client::getattr(inum eid, extent_protocol::attr& a){
+	extent_protocol::status ret = ec->getattr(eid,a);
 	if(ret == extent_protocol::OK){
 		return OK;
 	}
 	else return IOERR;
 }
 
-int yfs_client::putattr(inum edi, extent_protocol::attr a){
-	extent_protocol::status ret = ec->putattr(edi,a);
+int yfs_client::putattr(inum eid, extent_protocol::attr a){
+	extent_protocol::status ret = ec->putattr(eid,a);
 	if(ret == extent_protocol::OK){
 		return OK;
 	}
@@ -163,6 +165,14 @@ bool yfs_client::exist(inum id){
 		return false;
 	}
 	else return true;
+}
+
+void yfs_client::acquire(inum eid){
+	lc->acquire(eid);
+}
+
+void yfs_client::release(inum eid){
+	lc->release(eid);
 }
 
 std::vector<std::string> yfs_client::split(const std::string& s, const std::string& match,
