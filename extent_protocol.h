@@ -13,8 +13,10 @@ class extent_protocol {
   enum rpc_numbers {
     put = 0x6001,
     get,
+    putattr,
     getattr,
-    remove
+    remove,
+    exist
   };
   static const unsigned int maxextent = 8192*1000;
 
