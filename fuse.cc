@@ -83,34 +83,102 @@ fuseserver_getattr(fuse_req_t req, fuse_ino_t ino,
 void
 fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi)
 {
-  printf("fuseserver_setattr 0x%x\n", to_set);
-  if (FUSE_SET_ATTR_SIZE & to_set) {
-    printf("   fuseserver_setattr set size to %zu\n", attr->st_size);
-    struct stat st;
-    // You fill this in
-#if 0
-    fuse_reply_attr(req, &st, 0);
-#else
-    fuse_reply_err(req, ENOSYS);
-#endif
-  } else {
-    fuse_reply_err(req, ENOSYS);
-  }
+	printf("fuseserver_setattr 0x%x\n", to_set);
+
+	struct stat st;
+
+	extent_protocol::attr attribute;
+	yfs_client::inum inumber = ino;
+	std::string buf;
+
+	time_t current_time;
+	time(&current_time);
+
+	if(yfs->getattr(inumber,attribute) != yfs_client::OK ||
+	   getattr(inumber, st) != yfs_client::OK){
+		fuse_reply_err(req,EIO);
+	}
+
+	else if(yfs->get(inumber,buf) != yfs_client::OK){
+		fuse_reply_err(req,EIO);
+	}
+
+	else{
+		if (FUSE_SET_ATTR_SIZE & to_set) {
+			printf("fuseserver_setattr set size to %zu\n", (size_t)attr->st_size);
+			// You fill this in
+			if(attr->st_size == 0){
+				buf.clear();
+			}
+			else if(attr->st_size <= attribute.size){
+				buf = buf.substr(0,attr->st_size);
+			}
+			else{
+				std::stringstream sstr;
+				sstr << buf;
+				for(int i=0; i<attr->st_size-attribute.size; i++){
+					sstr<<"\0";
+				}
+				buf = sstr.str();
+			}
+			if(yfs->put(inumber,buf) != yfs_client::OK){
+				fuse_reply_err(req,EIO);
+			}
+			else{
+				attribute.size = attr->st_size;
+				st.st_size = attr->st_size;
+			}
+		}
+		if (FUSE_SET_ATTR_ATIME & to_set){
+			printf("fuseserver_setattr set atime to 0x%x\n", (unsigned int)attr->st_atime);
+			attribute.atime = attr->st_atime;
+			st.st_atime = attr->st_atime;
+		}
+		if (FUSE_SET_ATTR_MTIME & to_set){
+			printf("fuseserver_setattr set mtime to 0x%x\n", (unsigned int)attr->st_mtime);
+			attribute.mtime = attr->st_mtime;
+			st.st_mtime = attr->st_mtime;
+		}
+		if (FUSE_SET_ATTR_ATIME_NOW & to_set){
+			printf("fuseserver_setattr set atime now to 0x%x\n", (unsigned int)current_time);
+			attribute.atime = current_time;
+			st.st_atime = current_time;
+		}
+		if (FUSE_SET_ATTR_MTIME_NOW & to_set){
+			printf("fuseserver_setattr set mtime now to 0x%x\n", (unsigned int)current_time);
+			attribute.mtime = current_time;
+			st.st_mtime = current_time;
+		}
+
+		if (yfs->putattr(inumber, attribute) == yfs_client::OK){
+			fuse_reply_attr(req,&st,0);
+		}
+		else{
+			fuse_reply_err(req,EIO);
+		}
+	}
+
+
 }
 
 void
 fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
       off_t off, struct fuse_file_info *fi)
 {
+	printf("fuseserver_read: ino 0x%x, size %d, off %d\n", (unsigned int)ino, size, (int)off);
 	// You fill this in
 	yfs_client::inum inumber = ino;
 	std::string buf;
+
 	if(yfs->get(inumber,buf) == yfs_client::IOERR){
 		fuse_reply_err(req,ENOENT);
 	}
 	else{
-		if(off < 0 || off >= buf.size() || size < 0){
+		if(off < 0 || size < 0){
 			fuse_reply_err(req,EIO);
+		}
+		else if(off >= buf.size() ){
+			fuse_reply_buf(req,NULL,0);
 		}
 		else if(off+size <= buf.size()){
 			fuse_reply_buf(req,buf.substr(off,size).c_str(),size);
@@ -128,6 +196,10 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   struct fuse_file_info *fi)
 {
 	// You fill this in
+
+	printf("fuseserver_write: ino 0x%x, size %d, off %d, flags 0x%x\n",
+			(unsigned int)ino, size, (int)off, fi->flags);
+
 	yfs_client::inum inumber = ino;
 	std::string data;
 	if(yfs->get(inumber,data) == yfs_client::IOERR){
@@ -135,15 +207,21 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
 	}
 	else{
 		std::stringstream sstr;
-		if(off < 0 || off >= data.size() || size < 0){
+		if(off < 0 || off > data.size() || size < 0){
 			fuse_reply_err(req,EIO);
 		}
 		else{
-			sstr << data.substr(0,off+1);
-			sstr << buf;
+			if(off > 0)sstr << data.substr(0,off);
+
+			std::stringstream buf_sub;
+			buf_sub << buf;
+
+			sstr << buf_sub.str().substr(0,size);
+
 			if(off+size < data.size()){
-				sstr << data.substr(off+size,data.size()-off-size);
+				sstr << data.substr(off+size,std::string::npos);
 			}
+
 			if(yfs->put(inumber,sstr.str()) == yfs_client::IOERR){
 				fuse_reply_err(req,EIO);
 			}
@@ -165,8 +243,6 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
 		new_ino = rand() | 0x80000000;
 	}
 
-	printf("get new inum 0x%x\n", (unsigned int) new_ino);
-
 	std::string buf;
 	std::string parent_buf;
 	if(yfs->put(new_ino,buf) == yfs_client::IOERR){
@@ -180,8 +256,6 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
 
 	sstr << parent_buf;
 	sstr << new_ino << " " << name << "\n";
-
-	printf("parent buf: %s\n", sstr.str().c_str());
 
 	if(yfs->put(parent,sstr.str()) == yfs_client::IOERR){
 		return yfs_client::IOERR;
@@ -202,12 +276,14 @@ void
 fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name,
    mode_t mode, struct fuse_file_info *fi)
 {
-  struct fuse_entry_param e;
-  if( fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
-    fuse_reply_create(req, &e, fi);
-  } else {
-    fuse_reply_err(req, ENOENT);
-  }
+	printf("fuseserver_create: parent 0x%x, name %s\n", (unsigned int)parent, name);
+
+	struct fuse_entry_param e;
+	if( fuseserver_createhelper( parent, name, mode, &e ) == yfs_client::OK ) {
+		fuse_reply_create(req, &e, fi);
+	} else {
+		fuse_reply_err(req, ENOENT);
+	}
 }
 
 void fuseserver_mknod( fuse_req_t req, fuse_ino_t parent, 
@@ -234,7 +310,10 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 	// `parent' in YFS. If the file was found, initialize e.ino and
 	// e.attr appropriately.
 
+	printf("fuseserver_lookup: parent 0x%x, name %s\n", (unsigned int)parent, name);
+
 	yfs_client::inum inumber = yfs->ilookup(parent,name);
+
 	found = (inumber != 0)?true:false;
 
 	if (found){
@@ -323,15 +402,20 @@ void
 fuseserver_open(fuse_req_t req, fuse_ino_t ino,
      struct fuse_file_info *fi)
 {
-  // You fill this in
-	fuse_reply_open(req, fi);
+	// You fill this in
+	if(yfs->exist(ino)){
+		fuse_reply_open(req, fi);
+	}
+	else{
+		fuse_reply_err(req,ENOENT);
+	}
 }
 
 void
 fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
      mode_t mode)
 {
-  struct fuse_entry_param e;
+  //struct fuse_entry_param e;
 
   // You fill this in
 #if 0

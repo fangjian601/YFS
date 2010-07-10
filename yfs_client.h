@@ -47,6 +47,8 @@ public:
 
 	int get(inum, std::string& buf);
 	int put(inum, std::string buf);
+	int getattr(inum eid, extent_protocol::attr& a);
+	int putattr(inum eid, extent_protocol::attr a);
 	int remove(inum);
 	bool exist(inum);
 

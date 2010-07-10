@@ -28,6 +28,14 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
 }
 
 extent_protocol::status
+extent_client::putattr(extent_protocol::extentid_t eid, extent_protocol::attr attr){
+	extent_protocol::status ret = extent_protocol::OK;
+	int r;
+	ret = cl->call(extent_protocol::putattr, eid, attr, r);
+	return ret;
+}
+
+extent_protocol::status
 extent_client::getattr(extent_protocol::extentid_t eid, 
 		       extent_protocol::attr &attr)
 {

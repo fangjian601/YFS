@@ -114,6 +114,8 @@ sub checkcontent {
       $c2 .= $_;
     }
     close(F);
+    #print "$files->{$name}\n";
+    #print "$c2\n";
     $files->{$name} eq $c2 or die "content of $f is incorrect\n";
 }
 

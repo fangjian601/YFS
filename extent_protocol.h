@@ -13,6 +13,7 @@ class extent_protocol {
   enum rpc_numbers {
     put = 0x6001,
     get,
+    putattr,
     getattr,
     remove,
     exist

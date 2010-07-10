@@ -95,6 +95,9 @@ yfs_client::inum yfs_client::ilookup(inum di, std::string name){
 	if(isfile(di))return 0;
 	std::string buf;
 	get(di,buf);
+
+	printf("yfs_client::ilookup: inum 0x%x, buf\n%s\n", (unsigned int)di, buf.c_str());
+
 	std::vector<std::string> entries = yfs_client::split(buf,"\n",true,false);
 	for(unsigned int i = 0; i < entries.size(); i++){
 		std::string entry = entries[i];
@@ -121,6 +124,22 @@ int yfs_client::get(inum i, std::string& buf){
 
 int yfs_client::put(inum i, std::string buf){
 	extent_protocol::status ret = ec->put(i,buf);
+	if(ret == extent_protocol::OK){
+		return OK;
+	}
+	else return IOERR;
+}
+
+int yfs_client::getattr(inum edi, extent_protocol::attr& a){
+	extent_protocol::status ret = ec->getattr(edi,a);
+	if(ret == extent_protocol::OK){
+		return OK;
+	}
+	else return IOERR;
+}
+
+int yfs_client::putattr(inum edi, extent_protocol::attr a){
+	extent_protocol::status ret = ec->putattr(edi,a);
 	if(ret == extent_protocol::OK){
 		return OK;
 	}

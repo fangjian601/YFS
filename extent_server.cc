@@ -60,6 +60,14 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 	return extent_protocol::OK;
 }
 
+int extent_server::putattr(extent_protocol::extentid_t id, extent_protocol::attr a, int &){
+	if(files.find(id) == files.end()){
+		return extent_protocol::IOERR;
+	}
+	files[id]->attr = a;
+	return extent_protocol::OK;
+}
+
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
 {
 	// You replace this with a real implementation. We send a phony response
