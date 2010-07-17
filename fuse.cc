@@ -136,6 +136,8 @@ fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set
 				attribute.mtime = current_time;
 				attribute.ctime = current_time;
 				st.st_size = attr->st_size;
+				st.st_mtime = current_time;
+				st.st_ctime = current_time;
 			}
 		}
 		if (FUSE_SET_ATTR_ATIME & to_set){
@@ -261,16 +263,17 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
 	fuse_ino_t new_ino;
 	yfs->acquire(parent);
 	yfs_client::inum inumber = yfs->ilookup(parent,name);
-	srand(getpid());
+	srand(time(NULL)^getpid());
 	if(isdir && inumber == 0){
 		do{
 			new_ino = rand();
-			yfs->acquire(new_ino);
+			//yfs->acquire(new_ino);
 			if(yfs->exist(new_ino)){
-				yfs->release(new_ino);
+				//yfs->release(new_ino);
 			}
 			else break;
 		}while(true);
+		yfs->acquire(new_ino);
 	}
 	else if(isdir && inumber != 0){
 		yfs->release(parent);
@@ -279,16 +282,17 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
 	else if(!isdir && inumber == 0){
 		do{
 			new_ino = rand() | 0x80000000;
-			yfs->acquire(new_ino);
+			//yfs->acquire(new_ino);
 			if(yfs->exist(new_ino)){
-				yfs->release(new_ino);
+				//yfs->release(new_ino);
 			}
 			else break;
 		}while(true);
+		yfs->acquire(new_ino);
 	}
 	else{
-		yfs->release(parent);
-		return yfs_client::EXIST;
+		new_ino = inumber;
+		yfs->acquire(new_ino);
 	}
 
 	std::string buf;
