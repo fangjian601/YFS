@@ -5,17 +5,29 @@
 #define lock_client_cache_h
 
 #include <string>
+#include <list>
+#include <map>
 #include "lock_protocol.h"
 #include "rpc.h"
 #include "lock_client.h"
+#include "extent_client.h"
 
 // Classes that inherit lock_release_user can override dorelease so that 
 // that they will be called when lock_client releases a lock.
 // You will not need to do anything with this class until Lab 6.
 class lock_release_user {
- public:
-  virtual void dorelease(lock_protocol::lockid_t) = 0;
-  virtual ~lock_release_user() {};
+public:
+	virtual void dorelease(lock_protocol::lockid_t) = 0;
+	virtual ~lock_release_user() {};
+};
+
+class lock_releaser : public lock_release_user{
+private:
+	extent_client* ec;
+public:
+	lock_releaser(extent_client* _ec);
+	virtual ~lock_releaser();
+	virtual void dorelease(lock_protocol::lockid_t);
 };
 
 
@@ -68,21 +80,51 @@ class lock_release_user {
 // has been received.
 //
 
+struct lock_info_client{
+	enum status{NONE = 0,FREE = 1,LOCKED = 2,ACQUIRING = 3,RELEASING = 4};
+	lock_protocol::lockid_t id;
+	status stat;
+	pthread_mutex_t lock_mutex;
+	pthread_cond_t lock_cond;
+	pthread_cond_t revoke_cond;
+
+	lock_info_client(lock_protocol::lockid_t _id, status _stat = NONE);
+};
 
 class lock_client_cache : public lock_client {
- private:
-  class lock_release_user *lu;
-  int rlock_port;
-  std::string hostname;
-  std::string id;
+private:
+	class lock_release_user *lu;
+	int rlock_port;
+	std::string hostname;
+	std::string id;
 
- public:
-  static int last_port;
-  lock_client_cache(std::string xdst, class lock_release_user *l = 0);
-  virtual ~lock_client_cache() {};
-  lock_protocol::status acquire(lock_protocol::lockid_t);
-  virtual lock_protocol::status release(lock_protocol::lockid_t);
-  void releaser();
+	pthread_mutex_t locks_mutex;
+	pthread_mutex_t releaser_mutex;
+	pthread_cond_t releaser_cond;
+	pthread_mutex_t retryer_mutex;
+	pthread_cond_t retryer_cond;
+
+	std::list<lock_protocol::lockid_t> revoke_list;
+	std::list<lock_protocol::lockid_t> retry_list;
+
+	std::map<lock_protocol::lockid_t, lock_info_client*> locks;
+
+	void rlsrpc_init();
+	void rlsrpc_reg();
+	void rlsrpc_subscribe();
+	lock_info_client* get_lock(lock_protocol::lockid_t lid);
+
+
+public:
+	static int last_port;
+	lock_client_cache(std::string xdst, class lock_release_user *l = 0);
+	virtual ~lock_client_cache() {};
+	virtual lock_protocol::status acquire(lock_protocol::lockid_t);
+	virtual lock_protocol::status release(lock_protocol::lockid_t);
+	rlock_protocol::status retry(lock_protocol::lockid_t, int &);
+	rlock_protocol::status revoke(lock_protocol::lockid_t, int &);
+	void releaser();
+	void retryer();
 };
 #endif
 

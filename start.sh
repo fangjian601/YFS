@@ -9,6 +9,8 @@ if [ -z $NUM_LS ]; then
     NUM_LS=0
 fi
 
+echo $LOSSY, $NUM_LS
+
 BASE_PORT=$RANDOM
 BASE_PORT=$[BASE_PORT+2000]
 EXTENT_PORT=$BASE_PORT
