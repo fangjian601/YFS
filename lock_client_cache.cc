@@ -7,6 +7,16 @@
 #include <iostream>
 #include <stdio.h>
 
+lock_releaser::lock_releaser(extent_client* _ec)
+: ec(_ec){}
+
+lock_releaser::~lock_releaser(){}
+
+void lock_releaser::dorelease(lock_protocol::lockid_t lid)
+{
+	ec->flush(lid);
+}
+
 lock_info_client::lock_info_client(lock_protocol::lockid_t _id, status _stat)
 : id(_id), stat(_stat){
 	pthread_mutex_init(&lock_mutex, NULL);
@@ -119,6 +129,7 @@ lock_client_cache::releaser()
 				assert(lock->stat == lock_info_client::FREE);
 			}
 			int r;
+			lu->dorelease(lid);
 			cl->call(lock_protocol::release, id, lid, r);
 			lock->stat = lock_info_client::NONE;
 			pthread_cond_signal(&lock->lock_cond);
@@ -191,7 +202,6 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
 				goto lock_free;
 			}
 			else if(server_ret == lock_protocol::RETRY){
-				printf("acquire lock: server returns RETRY!\n");
 				lock->stat = lock_info_client::ACQUIRING;
 				pthread_cond_wait(&lock->lock_cond, &lock->lock_mutex);
 				if(lock->stat == lock_info_client::FREE)goto lock_free;

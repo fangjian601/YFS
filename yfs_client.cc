@@ -14,7 +14,8 @@
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
 	ec = new extent_client(extent_dst);
-	lc = new lock_client_cache(lock_dst);
+	lock_releaser* lr = new lock_releaser(ec);
+	lc = new lock_client_cache(lock_dst,lr);
 
 }
 
@@ -122,6 +123,7 @@ int yfs_client::get(inum i, std::string& buf){
 	if(ret == extent_protocol::OK){
 		return OK;
 	}
+	else if(ret == extent_protocol::NOENT) return NOENT;
 	else return IOERR;
 }
 
@@ -138,6 +140,7 @@ int yfs_client::getattr(inum eid, extent_protocol::attr& a){
 	if(ret == extent_protocol::OK){
 		return OK;
 	}
+	else if(ret == extent_protocol::NOENT) return NOENT;
 	else return IOERR;
 }
 
@@ -146,6 +149,7 @@ int yfs_client::putattr(inum eid, extent_protocol::attr a){
 	if(ret == extent_protocol::OK){
 		return OK;
 	}
+	else if(ret == extent_protocol::NOENT) return NOENT;
 	else return IOERR;
 }
 
@@ -154,6 +158,7 @@ int yfs_client::remove(inum i){
 	if(ret == extent_protocol::OK){
 		return OK;
 	}
+	else if(ret == extent_protocol::NOENT) return NOENT;
 	else return IOERR;
 }
 
@@ -169,10 +174,12 @@ bool yfs_client::exist(inum id){
 
 void yfs_client::acquire(inum eid){
 	lc->acquire(eid);
+	printf("yfs_client::acquire: acquired lock 0x%x\n", (unsigned int)eid);
 }
 
 void yfs_client::release(inum eid){
 	lc->release(eid);
+	printf("yfs_client::release: released lock 0x%x\n", (unsigned int)eid);
 }
 
 std::vector<std::string> yfs_client::split(const std::string& s, const std::string& match,

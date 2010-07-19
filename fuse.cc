@@ -21,6 +21,7 @@
 #include <set>
 
 int myid;
+yfs_client::inum last_inum = 1;
 yfs_client *yfs;
 
 int id() { 
@@ -451,7 +452,6 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 		fuse_reply_err(req,ENOENT);
 	}
 	else{
-		yfs->release(ino);
 		std::vector<std::string> entries = yfs_client::split(parent_buf,"\n",true,false);
 
 		for(unsigned int i = 0; i < entries.size(); i++){
@@ -459,15 +459,18 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 			std::vector<std::string> info = yfs_client::split(entry," ", true,false);
 			if(info.size() != 2){
 				fuse_reply_err(req,EIO);
+				goto release;
 			}
 			yfs_client::inum temp_inum = yfs_client::n2i(info[0]);
 			std::string temp_name = info[1];
 			dirbuf_add(&b,temp_name.c_str(),temp_inum);
 		}
-
 		reply_buf_limited(req, b.p, b.size, off, size);
 		free(b.p);
+		goto release;
 	}
+release:
+	yfs->release(ino);
  }
 
 

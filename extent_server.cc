@@ -51,7 +51,7 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 	time_t current_time;
 	time(&current_time);
 	if(files.find(id) == files.end()){
-		return extent_protocol::IOERR;
+		return extent_protocol::NOENT;
 	}
 	else{
 		files[id]->attr.atime = current_time;
@@ -62,7 +62,7 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 
 int extent_server::putattr(extent_protocol::extentid_t id, extent_protocol::attr a, int &){
 	if(files.find(id) == files.end()){
-		return extent_protocol::IOERR;
+		return extent_protocol::NOENT;
 	}
 	files[id]->attr = a;
 	return extent_protocol::OK;
@@ -73,8 +73,9 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
 	// You replace this with a real implementation. We send a phony response
 	// for now because it's difficult to get FUSE to do anything (including
 	// unmount) if getattr fails.
+	printf("extent_server::getattr id 0x%x\n", (unsigned int)id);
 	if(files.find(id) == files.end()){
-		return extent_protocol::IOERR;
+		return extent_protocol::NOENT;
 	}
 	a.size = files[id]->attr.size;
 	a.atime = files[id]->attr.atime;
@@ -86,7 +87,7 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
 	if(files.find(id) == files.end()){
-		return extent_protocol::IOERR;
+		return extent_protocol::NOENT;
 	}
 	files.erase(id);
 	return extent_protocol::OK;
