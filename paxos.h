@@ -39,6 +39,7 @@ class acceptor {
           paxos_protocol::decidearg a, int &r);
 
   friend class log;
+  friend class proposer;
 
  public:
   acceptor(class paxos_change *cfg, bool _first, std::string _me, 
