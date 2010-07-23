@@ -102,6 +102,7 @@ private:
 	std::string id;
 
 	pthread_mutex_t locks_mutex;
+	pthread_mutex_t rid_mutex;
 	pthread_mutex_t releaser_mutex;
 	pthread_cond_t releaser_cond;
 	pthread_mutex_t retryer_mutex;
@@ -116,6 +117,7 @@ private:
 	void rlsrpc_reg();
 	void rlsrpc_subscribe();
 	lock_info_client* get_lock(lock_protocol::lockid_t lid);
+	request_t get_rid();
 
 
 public:

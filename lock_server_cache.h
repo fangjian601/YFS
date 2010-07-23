@@ -19,6 +19,7 @@ struct client_info {
 };
 
 struct request {
+	request_t rid;
 	client_info requester;
 	lock_protocol::lockid_t request_lid;
 	friend marshall & operator<<(marshall &m, struct request &s);
@@ -49,6 +50,7 @@ private:
 	std::map<std::string, client_info> clients;
 	std::map<lock_protocol::lockid_t, lock_info_server> locks;
 	std::map<std::string, rpcc*> rpcc_cache;
+	std::map<std::string, std::map<request_t, lock_protocol::status> > rpc_status;
 
 	std::list<request> revoke_list;
 	std::list<request> retry_list;
@@ -61,6 +63,7 @@ private:
 	pthread_cond_t revoker_cond;
 	pthread_cond_t retryer_cond;
 
+	void addrequest(request req, std::list<request>& req_list);
 	lock_info_server get_lock(lock_protocol::lockid_t);
 	client_info get_client(std::string cid);
 	rpcc* get_rpcc(client_info);
