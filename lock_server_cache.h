@@ -8,7 +8,8 @@
 #include "rpc.h"
 #include "lock_server.h"
 #include "rsm.h"
-struct client_info{
+#include "rsm_state_transfer.h"
+struct client_info {
 	std::string id;
 	std::string host;
 	int port;
@@ -16,13 +17,15 @@ struct client_info{
 	client_info(std::string, int);
 };
 
-struct request{
+struct request {
 	client_info* requester;
 	lock_protocol::lockid_t request_lid;
 };
 
-struct lock_info_server{
-	enum status{FREE,LOCKED,REVOKING,RETRYING};
+struct lock_info_server {
+	enum status {
+		FREE, LOCKED, REVOKING, RETRYING
+	};
 	lock_protocol::lockid_t id;
 	status stat;
 	pthread_mutex_t lock_mutex;
@@ -32,14 +35,12 @@ struct lock_info_server{
 	lock_info_server(lock_protocol::lockid_t);
 };
 
-class lock_server_cache {
- private:
-  class rsm *rsm;
- public:
-  lock_server_cache(class rsm *rsm = 0);
-  lock_protocol::status stat(lock_protocol::lockid_t, int &);
-  void revoker();
-  void retryer();
+class lock_server_cache: public rsm_state_transfer {
+private:
+	class rsm *rsm;
+public:
+	lock_server_cache(class rsm *rsm = 0);
+	virtual ~lock_server_cache();
 private:
 	std::map<std::string, client_info*> clients;
 	std::map<lock_protocol::lockid_t, lock_info_server*> locks;
@@ -59,11 +60,15 @@ private:
 public:
 	lock_server_cache();
 	lock_protocol::status stat(lock_protocol::lockid_t, int &);
-	lock_protocol::status acquire(std::string id, lock_protocol::lockid_t, int &);
-	lock_protocol::status release(std::string id, lock_protocol::lockid_t, int &);
+	lock_protocol::status acquire(std::string id, request_t rid,
+			lock_protocol::lockid_t, int &);
+	lock_protocol::status release(std::string id, request_t rid,
+			lock_protocol::lockid_t, int &);
 	lock_protocol::status subscribe(std::string hostname, int port, int &);
 	void revoker();
 	void retryer();
+	virtual std::string marshal_state();
+	virtual void unmarshal_state(std::string);
 };
 
 #endif

@@ -5,6 +5,8 @@
 
 #include "rpc.h"
 
+typedef unsigned long long request_t;
+
 class lock_protocol {
  public:
   enum xxstatus { OK, RETRY, RPCERR, NOENT, IOERR };

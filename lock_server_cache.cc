@@ -60,6 +60,8 @@ lock_server_cache::lock_server_cache(class rsm *_rsm)
 	assert (r == 0);
 }
 
+lock_server_cache::~lock_server_cache(){}
+
 void
 lock_server_cache::revoker()
 {
@@ -70,12 +72,17 @@ lock_server_cache::revoker()
 	while(true){
 		pthread_mutex_lock(&revoker_mutex);
 		pthread_cond_wait(&revoker_cond, &revoker_mutex);
-		int size = revoke_list.size();
-		for(int i=0; i<size; i++){
-			request req = revoke_list.front();
-			revoke_list.pop_front();
-			int r;
-			req.requester->cl->call(rlock_protocol::revoke, req.request_lid, r);
+		if(rsm->amiprimary()){
+			int size = revoke_list.size();
+			for(int i=0; i<size; i++){
+				request req = revoke_list.front();
+				revoke_list.pop_front();
+				int r;
+				req.requester->cl->call(rlock_protocol::revoke, req.request_lid, r);
+			}
+		}
+		else{
+			revoke_list.clear();
 		}
 		pthread_mutex_unlock(&revoker_mutex);
 
@@ -94,12 +101,17 @@ lock_server_cache::retryer()
 	while(true){
 		pthread_mutex_lock(&retryer_mutex);
 		pthread_cond_wait(&retryer_cond, &retryer_mutex);
-		int size = retry_list.size();
-		for(int i=0; i<size; i++){
-			request req = retry_list.front();
-			retry_list.pop_front();
-			int r;
-			req.requester->cl->call(rlock_protocol::retry, req.request_lid, r);
+		if(rsm->amiprimary()){
+			int size = retry_list.size();
+			for(int i=0; i<size; i++){
+				request req = retry_list.front();
+				retry_list.pop_front();
+				int r;
+				req.requester->cl->call(rlock_protocol::retry, req.request_lid, r);
+			}
+		}
+		else{
+			retry_list.clear();
 		}
 		pthread_mutex_unlock(&retryer_mutex);
 	}
@@ -111,7 +123,7 @@ lock_server_cache::stat(lock_protocol::lockid_t tid, int &)
 	return lock_protocol::OK;
 }
 lock_protocol::status
-lock_server_cache::acquire(std::string id, lock_protocol::lockid_t lid, int &)
+lock_server_cache::acquire(std::string id, request_t rid, lock_protocol::lockid_t lid, int &)
 {
 	pthread_mutex_lock(&locks_mutex);
 	lock_info_server* lock = get_lock(lid);
@@ -157,7 +169,7 @@ lock_server_cache::acquire(std::string id, lock_protocol::lockid_t lid, int &)
 	return ret;
 }
 lock_protocol::status
-lock_server_cache::release(std::string id, lock_protocol::lockid_t lid, int &)
+lock_server_cache::release(std::string id, request_t rid, lock_protocol::lockid_t lid, int &)
 {
 	pthread_mutex_lock(&locks_mutex);
 	lock_info_server* lock = get_lock(lid);
@@ -197,4 +209,14 @@ lock_server_cache::get_lock(lock_protocol::lockid_t lid)
 		locks[lid] = lock;
 	}
 	return locks[lid];
+}
+
+std::string lock_server_cache::marshal_state()
+{
+	return "";
+}
+
+void lock_server_cache::unmarshal_state(std::string state)
+{
+
 }

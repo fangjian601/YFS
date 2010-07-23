@@ -38,6 +38,11 @@ main(int argc, char *argv[])
 #define	RSM
 #ifdef RSM
   rsm rsm(argv[1], argv[2]);
+  lock_server_cache ls(&rsm);
+  rsm.reg(lock_protocol::stat, &ls, &lock_server_cache::stat);
+  rsm.reg(lock_protocol::acquire, &ls, &lock_server_cache::acquire);
+  rsm.reg(lock_protocol::release, &ls, &lock_server_cache::release);
+  rsm.reg(lock_protocol::subscribe, &ls, &lock_server_cache::subscribe);
 #endif
 
 #ifndef RSM

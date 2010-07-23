@@ -46,9 +46,11 @@ lock_client_cache::lock_client_cache(std::string xdst,
 				     class lock_release_user *_lu)
   : lock_client(xdst), lu(_lu)
 {
+	rcl = new rsm_client(xdst);
 	rlsrpc_init();
 	rlsrpc_reg();
 	rlsrpc_subscribe();
+	last_request_id = 0;
 	pthread_mutex_init(&locks_mutex, NULL);
 	pthread_mutex_init(&releaser_mutex, NULL);
 	pthread_cond_init(&releaser_cond, NULL);
@@ -84,7 +86,7 @@ lock_client_cache::rlsrpc_reg(){
 void
 lock_client_cache::rlsrpc_subscribe(){
 	  int r;
-	  int ret = cl->call(lock_protocol::subscribe, hostname, rlock_port, r);
+	  int ret = rcl->call(lock_protocol::subscribe, hostname, rlock_port, r);
 	  assert (ret == lock_protocol::OK);
 }
 
@@ -129,8 +131,8 @@ lock_client_cache::releaser()
 				assert(lock->stat == lock_info_client::FREE);
 			}
 			int r;
-			lu->dorelease(lid);
-			cl->call(lock_protocol::release, id, lid, r);
+			//lu->dorelease(lid);
+			rcl->call(lock_protocol::release, id, ++last_request_id, lid, r);
 			lock->stat = lock_info_client::NONE;
 			pthread_cond_signal(&lock->lock_cond);
 			pthread_mutex_unlock(&lock->lock_mutex);
@@ -154,7 +156,7 @@ lock_client_cache::retryer()
 			lock_info_client* lock = get_lock(lid);
 			pthread_mutex_lock(&lock->lock_mutex);
 			int r;
-			lock_protocol::status server_ret = cl->call(lock_protocol::acquire, id, lid, r);
+			lock_protocol::status server_ret = rcl->call(lock_protocol::acquire, id, ++last_request_id, lid, r);
 			assert(server_ret == lock_protocol::OK);
 			assert(lock->stat == lock_info_client::ACQUIRING);
 			lock->stat = lock_info_client::FREE;
@@ -197,7 +199,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
 	while(true){
 		if(lock->stat == lock_info_client::NONE){
 			int r;
-			lock_protocol::status server_ret = cl->call(lock_protocol::acquire, id, lid, r);
+			lock_protocol::status server_ret = rcl->call(lock_protocol::acquire, id, ++last_request_id, lid, r);
 			if(server_ret == lock_protocol::OK){
 				goto lock_free;
 			}

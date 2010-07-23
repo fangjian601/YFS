@@ -9,6 +9,7 @@
 #include <map>
 #include "lock_protocol.h"
 #include "rpc.h"
+#include "rsm_client.h"
 #include "lock_client.h"
 #include "extent_client.h"
 
@@ -94,6 +95,8 @@ struct lock_info_client{
 class lock_client_cache : public lock_client {
 private:
 	class lock_release_user *lu;
+	rsm_client *rcl;
+	request_t last_request_id;
 	int rlock_port;
 	std::string hostname;
 	std::string id;

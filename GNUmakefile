@@ -69,7 +69,7 @@ ifeq ($(LAB5GE),1)
 lock_tester += lock_client_cache.cc
 endif
 ifeq ($(LAB8GE),1)
-lock_tester+=rsm_client.cc
+lock_tester+=rsm_client.cc extent_client.cc
 endif
 lock_tester : $(patsubst %.cc,%.o,$(lock_tester)) rpc/librpc.a
 
