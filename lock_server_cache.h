@@ -13,26 +13,30 @@ struct client_info {
 	std::string id;
 	std::string host;
 	int port;
-	rpcc* cl;
-	client_info(std::string, int);
+	client_info(std::string _host = std::string(), int  _port = 0);
+	friend marshall & operator<<(marshall &m, struct client_info &s);
+	friend unmarshall & operator>>(unmarshall &u, struct client_info &s);
 };
 
 struct request {
-	client_info* requester;
+	client_info requester;
 	lock_protocol::lockid_t request_lid;
+	friend marshall & operator<<(marshall &m, struct request &s);
+	friend unmarshall & operator>>(unmarshall &u, struct request &s);
 };
 
 struct lock_info_server {
 	enum status {
-		FREE, LOCKED, REVOKING, RETRYING
+		FREE = 0, LOCKED = 1, REVOKING = 2, RETRYING = 3
 	};
 	lock_protocol::lockid_t id;
-	status stat;
-	pthread_mutex_t lock_mutex;
-	client_info* retry;
-	client_info* owner;
-	std::list<client_info*> waiters;
-	lock_info_server(lock_protocol::lockid_t);
+	int stat;
+	client_info retry;
+	client_info owner;
+	std::list<client_info> waiters;
+	lock_info_server(lock_protocol::lockid_t lid = 0);
+	friend marshall & operator<<(marshall &m, struct lock_info_server &s);
+	friend unmarshall & operator>>(unmarshall &u, struct lock_info_server &s);
 };
 
 class lock_server_cache: public rsm_state_transfer {
@@ -42,8 +46,9 @@ public:
 	lock_server_cache(class rsm *rsm = 0);
 	virtual ~lock_server_cache();
 private:
-	std::map<std::string, client_info*> clients;
-	std::map<lock_protocol::lockid_t, lock_info_server*> locks;
+	std::map<std::string, client_info> clients;
+	std::map<lock_protocol::lockid_t, lock_info_server> locks;
+	std::map<std::string, rpcc*> rpcc_cache;
 
 	std::list<request> revoke_list;
 	std::list<request> retry_list;
@@ -51,11 +56,16 @@ private:
 	pthread_mutex_t revoker_mutex;
 	pthread_mutex_t retryer_mutex;
 	pthread_mutex_t locks_mutex;
+	pthread_mutex_t clients_mutex;
 
 	pthread_cond_t revoker_cond;
 	pthread_cond_t retryer_cond;
 
-	lock_info_server* get_lock(lock_protocol::lockid_t);
+	lock_info_server get_lock(lock_protocol::lockid_t);
+	client_info get_client(std::string cid);
+	rpcc* get_rpcc(client_info);
+	void set_lock(lock_protocol::lockid_t lid, lock_info_server lock);
+	void set_client(std::string cid, client_info);
 
 public:
 	lock_server_cache();
