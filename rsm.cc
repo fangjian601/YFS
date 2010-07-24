@@ -160,6 +160,8 @@ void rsm::recovery(){
 		else{
 			inviewchange = false;
 		}
+		insync = false;
+		pthread_cond_signal(&join_cond);
 		pthread_cond_wait(&recovery_cond, &rsm_mutex);
 	}
 	pthread_mutex_unlock(&rsm_mutex);
@@ -210,7 +212,6 @@ bool rsm::sync_with_backups() {
 			break;
 		}
 	}
-	insync = false;
 	return ret;
 }
 
@@ -221,7 +222,6 @@ bool rsm::sync_with_primary() {
 	bool ret = true;
 	ret = statetransfer(primary);
 	ret = statetransferdone(primary);
-	insync = false;
 	printf("rsm::sync_with_primary: sync with primary done\n");
 	return ret;
 }
@@ -309,13 +309,13 @@ bool rsm::join(std::string m) {
  */
 
 void rsm::commit_change() {
+	//pthread_mutex_lock(&rsm_mutex);
 	pthread_mutex_lock(&rsm_mutex);
 	if(insync){
 		nbackup = 0;
 		pthread_cond_signal(&sync_cond);
+		pthread_cond_wait(&join_cond, &rsm_mutex);
 	}
-	pthread_mutex_unlock(&rsm_mutex);
-	pthread_mutex_lock(&rsm_mutex);
 	assert(!insync);
 	// check if the primary is not in the current view
 	// and set the node with lowest id as the primary if
@@ -357,14 +357,14 @@ rsm_client_protocol::status rsm::client_invoke(int procno, std::string req,
 	int ret = rsm_client_protocol::OK;
 	// For lab 8
 	pthread_mutex_lock(&rsm_mutex);
-	if(!amiprimary_wo()){
-		printf("rsm::client_invoke: not primary");
-		ret = rsm_client_protocol::NOTPRIMARY;
-		pthread_mutex_unlock(&rsm_mutex);
-	}
-	else if(inviewchange){
+	if(inviewchange){
 		printf("rsm::client_invoke: in view change");
 		ret = rsm_client_protocol::BUSY;
+		pthread_mutex_unlock(&rsm_mutex);
+	}
+	else if(!amiprimary_wo()){
+		printf("rsm::client_invoke: not primary");
+		ret = rsm_client_protocol::NOTPRIMARY;
 		pthread_mutex_unlock(&rsm_mutex);
 	}
 	else{
@@ -390,10 +390,12 @@ rsm_client_protocol::status rsm::client_invoke(int procno, std::string req,
 				usleep(1000);
 				rsm_ret = h.get_rpcc()->call(rsm_protocol::invoke, procno, vs_temp, req, r, rpcc::to(1000));
 			}
-			if(rsm_ret == rsm_protocol::ERR){
-				failed = true;
-			}
 			breakpoint1();
+			partition1();
+			if(rsm_ret != rsm_protocol::OK){
+				failed = true;
+				break;
+			}
 		}
 		if(!failed){
 			printf("rsm::client_invoke: ok\n");
@@ -402,7 +404,7 @@ rsm_client_protocol::status rsm::client_invoke(int procno, std::string req,
 		}
 		else{
 			printf("rsm::client_invoke: error\n");
-			cfg->paxos_run();
+			//cfg->paxos_run();
 			ret = rsm_client_protocol::ERR;
 		}
 		pthread_mutex_unlock(&invoke_mutex);
@@ -437,7 +439,6 @@ rsm_protocol::status rsm::invoke(int proc, viewstamp vs, std::string req,
 		myvs = vs;
 		execute(proc,req);
 		breakpoint1();
-		partition1();
 		ret = rsm_protocol::OK;
 	}
 	pthread_mutex_unlock(&rsm_mutex);
@@ -449,6 +450,7 @@ rsm_protocol::status rsm::invoke(int proc, viewstamp vs, std::string req,
  */
 rsm_protocol::status rsm::transferreq(std::string src, viewstamp last,
 		rsm_protocol::transferres &r) {
+	if(!insync) return rsm_protocol::ERR;
 	assert(pthread_mutex_lock(&rsm_mutex)==0);
 	assert(primary == cfg->myaddr());
 	int ret = rsm_protocol::OK;
@@ -465,6 +467,7 @@ rsm_protocol::status rsm::transferreq(std::string src, viewstamp last,
  * RPC handler: Send back the local node's latest viewstamp
  */
 rsm_protocol::status rsm::transferdonereq(std::string m, int &r) {
+	if(!insync) return rsm_protocol::ERR;
 	int ret = rsm_client_protocol::OK;
 	printf("rsm::transferdonereq: from %s\n", m.c_str());
 	assert (pthread_mutex_lock(&rsm_mutex) == 0);
@@ -614,6 +617,7 @@ void rsm::breakpoint2() {
 }
 
 void rsm::partition1() {
+	printf("rsm::partition1: dopartition %d\n", dopartition);
 	if (dopartition) {
 		net_repair_wo(false);
 		dopartition = false;
