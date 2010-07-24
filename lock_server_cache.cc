@@ -138,8 +138,10 @@ lock_server_cache::revoker()
 			for(int i=0; i<size; i++){
 				request req = revoke_list.front();
 				int r;
-				get_rpcc(req.requester)->call(rlock_protocol::revoke, req.request_lid, r);
-				revoke_list.pop_front();
+				if(get_rpcc(req.requester)->call(rlock_protocol::revoke, req.request_lid, r)
+						== rlock_protocol::OK){
+					revoke_list.pop_front();
+				}
 			}
 		}
 		else{
@@ -167,8 +169,10 @@ lock_server_cache::retryer()
 			for(int i=0; i<size; i++){
 				request req = retry_list.front();
 				int r;
-				get_rpcc(req.requester)->call(rlock_protocol::retry, req.request_lid, r);
-				retry_list.pop_front();
+				if(get_rpcc(req.requester)->call(rlock_protocol::retry, req.request_lid, r)
+						== rlock_protocol::OK){
+					retry_list.pop_front();
+				}
 			}
 		}
 		else{
@@ -187,52 +191,62 @@ lock_protocol::status
 lock_server_cache::acquire(std::string id, request_t rid, lock_protocol::lockid_t lid, int &)
 {
 	printf("lock_server_cache::acquire: id %s, rid %llu, lid %llu\n", id.c_str(), rid, lid);
+	/*if(!rsm->amiprimary_wo()){
+		pthread_mutex_lock(&retryer_mutex);
+		std::list<request>::iterator iter = retry_list.begin();
+		for(; iter != retry_list.end(); ++iter){
+			if((*iter).request_lid == lid){
+				retry_list.erase(iter);
+				break;
+			}
+		}
+		pthread_mutex_unlock(&retryer_mutex);
+	}*/
 	pthread_mutex_lock(&locks_mutex);
 	lock_protocol::status ret = lock_protocol::OK;
-	if(rpc_status.find(id) != rpc_status.end()&&
+	if(rsm->amiprimary_wo()&&
+	   rpc_status.find(id) != rpc_status.end()&&
 	   rpc_status[id].find(rid) != rpc_status[id].end()){
-		ret = rpc_status[id][rid];
+		set_lock(lid, rpc_status[id][rid]);
+	}
+	lock_info_server lock = get_lock(lid);
+	rpc_status[id][rid] = lock;
+	if(lock.stat == lock_info_server::FREE ||
+	  (lock.stat == lock_info_server::RETRYING &&
+	   lock.retry.id == id)){
+
+		if(lock.stat != lock_info_server::FREE)lock.waiters.pop_front();
+		lock.owner = get_client(id);
+		lock.stat = lock_info_server::LOCKED;
+		if(lock.waiters.size() > 0){
+			lock.stat = lock_info_server::REVOKING;
+			pthread_mutex_lock(&revoker_mutex);
+			request req;
+			req.request_lid = lid;
+			req.requester = lock.owner;
+			req.rid = rid;
+			addrequest(req, revoke_list);
+			pthread_cond_signal(&revoker_cond);
+			pthread_mutex_unlock(&revoker_mutex);
+		}
+		ret = lock_protocol::OK;
 	}
 	else{
-		lock_info_server lock = get_lock(lid);
-		if(lock.stat == lock_info_server::FREE ||
-		  (lock.stat == lock_info_server::RETRYING &&
-		   lock.retry.id == id)){
-
-			if(lock.stat != lock_info_server::FREE)lock.waiters.pop_front();
-			lock.owner = get_client(id);
-			lock.stat = lock_info_server::LOCKED;
-			if(lock.waiters.size() > 0){
-				lock.stat = lock_info_server::REVOKING;
-				pthread_mutex_lock(&revoker_mutex);
-				request req;
-				req.request_lid = lid;
-				req.requester = lock.owner;
-				req.rid = rid;
-				addrequest(req, revoke_list);
-				pthread_cond_signal(&revoker_cond);
-				pthread_mutex_unlock(&revoker_mutex);
-			}
-			ret = lock_protocol::OK;
+		lock.waiters.push_back(get_client(id));
+		if(lock.stat == lock_info_server::LOCKED){
+			lock.stat = lock_info_server::REVOKING;
+			pthread_mutex_lock(&revoker_mutex);
+			request req;
+			req.request_lid = lid;
+			req.requester = lock.owner;
+			req.rid = rid;
+			addrequest(req, revoke_list);
+			pthread_cond_signal(&revoker_cond);
+			pthread_mutex_unlock(&revoker_mutex);
 		}
-		else{
-			lock.waiters.push_back(get_client(id));
-			if(lock.stat == lock_info_server::LOCKED){
-				lock.stat = lock_info_server::REVOKING;
-				pthread_mutex_lock(&revoker_mutex);
-				request req;
-				req.request_lid = lid;
-				req.requester = lock.owner;
-				req.rid = rid;
-				addrequest(req, revoke_list);
-				pthread_cond_signal(&revoker_cond);
-				pthread_mutex_unlock(&revoker_mutex);
-			}
-			ret = lock_protocol::RETRY;
-		}
-		set_lock(lid, lock);
-		rpc_status[id][rid] = ret;
+		ret = lock_protocol::RETRY;
 	}
+	set_lock(lid, lock);
 	pthread_mutex_unlock(&locks_mutex);
 	return ret;
 }
@@ -240,31 +254,41 @@ lock_protocol::status
 lock_server_cache::release(std::string id, request_t rid, lock_protocol::lockid_t lid, int &)
 {
 	printf("lock_server_cache::release: id %s, rid %llu, lid %llu\n", id.c_str(), rid, lid);
+	/*if(!rsm->amiprimary_wo()){
+		pthread_mutex_lock(&revoker_mutex);
+		std::list<request>::iterator iter = revoke_list.begin();
+		for(; iter != revoke_list.end(); ++iter){
+			if((*iter).request_lid == lid){
+				revoke_list.erase(iter);
+				break;
+			}
+		}
+		pthread_mutex_unlock(&revoker_mutex);
+	}*/
 	pthread_mutex_lock(&locks_mutex);
 	lock_protocol::status ret = lock_protocol::OK;
-	if(rpc_status.find(id) != rpc_status.end()&&
+	if(rsm->amiprimary_wo()&&
+	   rpc_status.find(id) != rpc_status.end()&&
 	   rpc_status[id].find(rid) != rpc_status[id].end()){
-		ret = rpc_status[id][rid];
+		set_lock(lid,rpc_status[id][rid]);
 	}
-	else{
-		lock_info_server lock = get_lock(lid);
-		lock.stat = lock_info_server::FREE;
-		if(lock.waiters.size() > 0){
-			client_info waiter = lock.waiters.front();
-			lock.retry = waiter;
-			lock.stat = lock_info_server::RETRYING;
-			pthread_mutex_lock(&retryer_mutex);
-			request req;
-			req.request_lid = lid;
-			req.requester = waiter;
-			req.rid = rid;
-			addrequest(req, retry_list);
-			pthread_cond_signal(&retryer_cond);
-			pthread_mutex_unlock(&retryer_mutex);
-		}
-		set_lock(lid, lock);
-		rpc_status[id][rid] = ret;
+	lock_info_server lock = get_lock(lid);
+	rpc_status[id][rid] = lock;
+	lock.stat = lock_info_server::FREE;
+	if(lock.waiters.size() > 0){
+		client_info waiter = lock.waiters.front();
+		lock.retry = waiter;
+		lock.stat = lock_info_server::RETRYING;
+		pthread_mutex_lock(&retryer_mutex);
+		request req;
+		req.request_lid = lid;
+		req.requester = waiter;
+		req.rid = rid;
+		addrequest(req, retry_list);
+		pthread_cond_signal(&retryer_cond);
+		pthread_mutex_unlock(&retryer_mutex);
 	}
+	set_lock(lid, lock);
 	pthread_mutex_unlock(&locks_mutex);
 	return ret;
 }
@@ -366,12 +390,12 @@ std::string lock_server_cache::marshal_state()
 	}
 
 	rep << rpc_status.size();
-	std::map<std::string, std::map<request_t, lock_protocol::status> >::iterator iter_rpc = rpc_status.begin();
+	std::map<std::string, std::map<request_t, lock_info_server> >::iterator iter_rpc = rpc_status.begin();
 	for(; iter_rpc != rpc_status.end(); ++iter_rpc){
 		rep << iter_rpc->first;
-		std::map<request_t, lock_protocol::status> requests = iter_rpc->second;
+		std::map<request_t, lock_info_server> requests = iter_rpc->second;
 		rep << requests.size();
-		std::map<request_t, lock_protocol::status>::iterator iter_req = requests.begin();
+		std::map<request_t, lock_info_server>::iterator iter_req = requests.begin();
 		for(; iter_req != requests.end(); ++iter_req){
 			rep << iter_req->first;
 			rep << iter_req->second;
@@ -429,13 +453,13 @@ void lock_server_cache::unmarshal_state(std::string state)
 		rep >> id;
 		unsigned int req_size;
 		rep >> req_size;
-		std::map<request_t, lock_protocol::status> requests;
+		std::map<request_t, lock_info_server> requests;
 		for(unsigned int j = 0; j < req_size; j++){
 			request_t req;
-			lock_protocol::status stat;
+			lock_info_server lock;
 			rep >> req;
-			rep >> stat;
-			requests[req] = stat;
+			rep >> lock;
+			requests[req] = lock;
 		}
 		rpc_status[id] = requests;
 	}
@@ -448,7 +472,7 @@ void lock_server_cache::unmarshal_state(std::string state)
 		rep >> req;
 		retry_list.push_back(req);
 	}
-	pthread_mutex_unlock(&revoker_mutex);
+	pthread_mutex_unlock(&retryer_mutex);
 
 	rep >> size;
 	pthread_mutex_lock(&revoker_mutex);

@@ -137,6 +137,34 @@ void rsm::reg1(int proc, handler *h) {
 	assert(pthread_mutex_unlock(&rsm_mutex)==0);
 }
 // The recovery thread runs this function
+void rsm::recovery(){
+	pthread_mutex_lock(&rsm_mutex);
+	bool r = false;
+	while(true){
+		while(!cfg->ismember(cfg->myaddr())){
+			if(!join(primary)){
+				pthread_mutex_unlock(&rsm_mutex);
+				sleep(3);
+				pthread_mutex_lock(&rsm_mutex);
+			}
+		}
+		if(primary == cfg->myaddr()){
+			r = sync_with_backups();
+		}
+		else{
+			r = sync_with_primary();
+		}
+		if(!r){
+			inviewchange = true;
+		}
+		else{
+			inviewchange = false;
+		}
+		pthread_cond_wait(&recovery_cond, &rsm_mutex);
+	}
+	pthread_mutex_unlock(&rsm_mutex);
+}
+/*
 void rsm::recovery() {
 	bool r = false;
 
@@ -164,15 +192,33 @@ void rsm::recovery() {
 	}
 	assert(pthread_mutex_unlock(&rsm_mutex)==0);
 }
-
+*/
 bool rsm::sync_with_backups() {
-	// For lab 8
+	//TODO For lab 8
+	nbackup = 0;
+	insync = true;
+	unsigned int slave_num = cfg->get_curview().size()-1;
+	while(nbackup < slave_num){
+		printf("rsm::sync_with_backups: go to sleep for slaves nbackup %d, expect %u\n",
+				nbackup, slave_num);
+		pthread_cond_wait(&sync_cond, &rsm_mutex);
+		printf("rsm::sync_with_backups: wake up for one slave sync done nbackup %d, "
+				"expect %u\n", nbackup, slave_num);
+	}
+	insync = false;
 	return true;
 }
 
 bool rsm::sync_with_primary() {
-	// For lab 8
-	return true;
+	//TODO For lab 8
+	printf("rsm::sync_with_primary: sync with primary %s\n", primary.c_str());
+	insync = true;
+	bool ret = true;
+	ret = statetransfer(primary);
+	ret = statetransferdone(primary);
+	insync = false;
+	printf("rsm::sync_with_primary: sync with primary done\n");
+	return ret;
 }
 
 /**
@@ -191,6 +237,7 @@ bool rsm::statetransfer(std::string m) {
 				last_myvs, r, rpcc::to(1000));
 		assert(pthread_mutex_lock(&rsm_mutex)==0);
 	}
+	printf("rsm::statetransfer: finished rpc call\n");
 	if (h.get_rpcc() == 0 || ret != rsm_protocol::OK) {
 		printf("rsm::statetransfer: couldn't reach %s %lx %d\n", m.c_str(),
 				(long unsigned) h.get_rpcc(), ret);
@@ -199,6 +246,7 @@ bool rsm::statetransfer(std::string m) {
 	if (stf && last_myvs != r.last) {
 		stf->unmarshal_state(r.state);
 	}
+	printf("rsm::statetransfer: finished unmarshall\n");
 	last_myvs = r.last;
 	printf("rsm::statetransfer transfer from %s success, vs(%d,%d)\n",
 			m.c_str(), last_myvs.vid, last_myvs.seqno);
@@ -206,7 +254,24 @@ bool rsm::statetransfer(std::string m) {
 }
 
 bool rsm::statetransferdone(std::string m) {
-	// For lab 8
+	//TODO For lab 8
+	printf("rsm::statetransferdone: contact %s w. my last_myvs(%d,%d), myvs(%d,%d)\n",
+			m.c_str(), last_myvs.vid, last_myvs.seqno, myvs.vid, myvs.seqno);
+	rsm_protocol::status ret = rsm_protocol::OK;
+	int r;
+	handle h(m);
+	if(h.get_rpcc()){
+		pthread_mutex_unlock(&rsm_mutex);
+		h.get_rpcc()->call(rsm_protocol::transferdonereq, cfg->myaddr(), r, rpcc::to(1000));
+		pthread_mutex_lock(&rsm_mutex);
+	}
+	if (h.get_rpcc() == 0 || ret != rsm_protocol::OK) {
+		printf("rsm::statetransfer: couldn't reach %s %lx %d\n", m.c_str(),
+				(long unsigned) h.get_rpcc(), ret);
+		return false;
+	}
+	//myvs.vid = r;
+	//myvs.seqno = 0;
 	return true;
 }
 
@@ -244,12 +309,15 @@ void rsm::commit_change() {
 	// check if the primary is not in the current view
 	// and set the node with lowest id as the primary if
 	// that's the case
+	myvs.vid = cfg->get_myvid();
+	myvs.seqno = 0;
+	inviewchange = true;
 	printf("rsm::commit_change: updating primary if needed\n");
 	set_primary();
-
 	printf("rsm::commit_change: signal to recovery thread\n");
 	pthread_cond_signal(&recovery_cond);
 	pthread_mutex_unlock(&rsm_mutex);
+	breakpoint2();
 }
 
 std::string rsm::execute(int procno, std::string req) {
@@ -264,7 +332,6 @@ std::string rsm::execute(int procno, std::string req) {
 	rep1 << ret;
 	rep1 << rep.str();
 	return rep1.str();
-	// signal to recovery thread to check if we need to join the current view
 }
 
 //
@@ -315,6 +382,7 @@ rsm_client_protocol::status rsm::client_invoke(int procno, std::string req,
 			if(rsm_ret == rsm_protocol::ERR){
 				failed = true;
 			}
+			breakpoint1();
 		}
 		if(!failed){
 			printf("rsm::client_invoke: ok\n");
@@ -357,6 +425,8 @@ rsm_protocol::status rsm::invoke(int proc, viewstamp vs, std::string req,
 		last_myvs = myvs;
 		myvs = vs;
 		execute(proc,req);
+		breakpoint1();
+		partition1();
 		ret = rsm_protocol::OK;
 	}
 	pthread_mutex_unlock(&rsm_mutex);
@@ -369,8 +439,9 @@ rsm_protocol::status rsm::invoke(int proc, viewstamp vs, std::string req,
 rsm_protocol::status rsm::transferreq(std::string src, viewstamp last,
 		rsm_protocol::transferres &r) {
 	assert(pthread_mutex_lock(&rsm_mutex)==0);
+	assert(primary == cfg->myaddr());
 	int ret = rsm_protocol::OK;
-	printf("transferreq from %s (%d,%d) vs (%d,%d)\n", src.c_str(), last.vid,
+	printf("rsm::transferreq: from %s (%d,%d) vs (%d,%d)\n", src.c_str(), last.vid,
 			last.seqno, last_myvs.vid, last_myvs.seqno);
 	if (stf && last != last_myvs)
 		r.state = stf->marshal_state();
@@ -384,8 +455,12 @@ rsm_protocol::status rsm::transferreq(std::string src, viewstamp last,
  */
 rsm_protocol::status rsm::transferdonereq(std::string m, int &r) {
 	int ret = rsm_client_protocol::OK;
+	printf("rsm::transferdonereq: from %s\n", m.c_str());
 	assert (pthread_mutex_lock(&rsm_mutex) == 0);
-	// For lab 8
+	//TODO For lab 8
+	assert(primary == cfg->myaddr());
+	nbackup++;
+	pthread_cond_signal(&sync_cond);
 	assert (pthread_mutex_unlock(&rsm_mutex) == 0);
 	return ret;
 }

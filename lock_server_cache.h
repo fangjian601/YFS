@@ -50,7 +50,7 @@ private:
 	std::map<std::string, client_info> clients;
 	std::map<lock_protocol::lockid_t, lock_info_server> locks;
 	std::map<std::string, rpcc*> rpcc_cache;
-	std::map<std::string, std::map<request_t, lock_protocol::status> > rpc_status;
+	std::map<std::string, std::map<request_t, lock_info_server> > rpc_status;
 
 	std::list<request> revoke_list;
 	std::list<request> retry_list;

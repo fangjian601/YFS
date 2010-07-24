@@ -328,3 +328,7 @@ bool config::paxos_run() {
 	}
 	return r;
 }
+
+unsigned config::get_myvid(){
+	return myvid;
+}

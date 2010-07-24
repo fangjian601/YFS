@@ -59,6 +59,7 @@ public:
 	void heartbeater(void);
 	void paxos_commit(unsigned instance, std::string v);
 	bool paxos_run();
+	unsigned get_myvid();
 	rpcs *get_rpcs() {
 		return acc->get_rpcs();
 	}

@@ -28,7 +28,7 @@ rsm_client::rsm_client(std::string dst) {
 // Assumes caller holds rsm_client_mutex 
 void rsm_client::primary_failure() {
 	// For lab 8
-    printf("Primary failure");
+    printf("rsm_client::primary_failure: primary failure\n");
 	for (std::vector<std::string>::iterator it = known_mems.begin(); it
 			!= known_mems.end(); it++) {
 		sockaddr_in dstsock;
