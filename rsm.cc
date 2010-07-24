@@ -197,6 +197,7 @@ bool rsm::sync_with_backups() {
 	//TODO For lab 8
 	nbackup = 0;
 	insync = true;
+	bool ret = true;
 	unsigned int slave_num = cfg->get_curview().size()-1;
 	while(nbackup < slave_num){
 		printf("rsm::sync_with_backups: go to sleep for slaves nbackup %d, expect %u\n",
@@ -204,9 +205,13 @@ bool rsm::sync_with_backups() {
 		pthread_cond_wait(&sync_cond, &rsm_mutex);
 		printf("rsm::sync_with_backups: wake up for one slave sync done nbackup %d, "
 				"expect %u\n", nbackup, slave_num);
+		if(nbackup == 0){
+			ret = false;
+			break;
+		}
 	}
 	insync = false;
-	return true;
+	return ret;
 }
 
 bool rsm::sync_with_primary() {
@@ -305,7 +310,13 @@ bool rsm::join(std::string m) {
 
 void rsm::commit_change() {
 	pthread_mutex_lock(&rsm_mutex);
-
+	if(insync){
+		nbackup = 0;
+		pthread_cond_signal(&sync_cond);
+	}
+	pthread_mutex_unlock(&rsm_mutex);
+	pthread_mutex_lock(&rsm_mutex);
+	assert(!insync);
 	// check if the primary is not in the current view
 	// and set the node with lowest id as the primary if
 	// that's the case
