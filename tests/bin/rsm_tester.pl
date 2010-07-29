@@ -88,7 +88,7 @@ sub print_config {
 sub spawn_ls {
   my $master = shift;
   my $port = shift;
-  return spawn( "./lock_server", $master, $port );
+  return spawn( "../../yfs_server/bin/lock_server", $master, $port );
 }
 
 sub spawn_config {
