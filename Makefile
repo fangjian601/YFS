@@ -7,7 +7,9 @@ define make_subdir
 endef
 
 all:
+	./scripts/check_dir.sh .
 	$(call make_subdir , all)
 	
 clean:
 	$(call make_subdir , clean)
+	$(RM) obj/*.d

@@ -25,4 +25,4 @@ $(OBJDIR)/%.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean :
-	$(RM) $(OBJS) $(LIB)
+	$(RM) $(OBJS) $(LIB) $(BIN)
