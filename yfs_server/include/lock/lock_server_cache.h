@@ -6,7 +6,6 @@
 #include <list>
 #include "lock_protocol.h"
 #include "rpc.h"
-#include "lock_server.h"
 #include "rsm.h"
 #include "rsm_state_transfer.h"
 struct client_info {

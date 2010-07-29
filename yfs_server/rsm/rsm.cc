@@ -83,7 +83,6 @@
 
 #include "handle.h"
 #include "rsm.h"
-#include "rsm_client.h"
 
 static void *
 recoverythread(void *x) {

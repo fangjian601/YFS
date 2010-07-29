@@ -1,0 +1,10 @@
+LIBDIR  = $(TOPDIR)/lib
+OBJDIR  = $(TOPDIR)/obj
+TESTDIR = $(TOPDIR)/tests
+RPC	    = $(TOPDIR)/rpc/include
+COMMON  = $(TOPDIR)/common
+CC		= gcc
+CXX	    = g++
+RM	    = rm
+AR	    = ar
+RANLIB  = ranlib

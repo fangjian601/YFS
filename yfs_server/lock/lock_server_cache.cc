@@ -12,6 +12,7 @@ lock_info_server::lock_info_server(lock_protocol::lockid_t _id)
 	stat = FREE;
 }
 
+
 marshall&
 operator<<(marshall &m, struct lock_info_server &s)
 {
