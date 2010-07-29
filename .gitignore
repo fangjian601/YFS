@@ -8,4 +8,6 @@ rpctest
 extent_server
 test-lab-4-b
 test-lab-4-c
+yfs_master
+yfs_client/bin/yfs_client
 rsm_tester
