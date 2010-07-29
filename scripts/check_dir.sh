@@ -6,11 +6,6 @@ if [ ! -e $TOPDIR/lib ]
 		mkdir $TOPDIR/lib
 fi
 
-if [ ! -e $TOPDIR/bin ]
-	then
-		mkdir $TOPDIR/bin
-fi
-
 if [ ! -e  $TOPDIR/log ]
 	then
 		mkdir $TOPDIR/log
