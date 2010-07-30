@@ -1,7 +1,7 @@
 TOPDIR	 = ../..
 include $(TOPDIR)/Makeconf
 BINDIR   = ../bin
-HEADERS  = -I$(COMMON) -I$(RPC) -I../include/lock -I../include/master -I../include/rsm
+HEADERS  = -I$(COMMON) -I$(RPC) -I../include/lock -I../include/filesystem -I../include/rsm 
 CXXFLAGS = -g -MD -Wall $(HEADERS)
 LDFLAGS  = -L$(TOPDIR)/lib  $(LIBDIR)/librpc.a
 LDLIBS	 = -lpthread

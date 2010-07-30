@@ -1,4 +1,4 @@
-SUBDIRS	  = rsm lock master 
+SUBDIRS	  = rsm lock filesystem
 
 define make_subdir
  @for subdir in $(SUBDIRS) ; do \
