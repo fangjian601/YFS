@@ -1,4 +1,4 @@
-SUBDIRS = rpc tests yfs_client yfs_server
+SUBDIRS = rpc rsm lock tests yfs_client yfs_server
 
 define make_subdir
  @for subdir in $(SUBDIRS) ; do \

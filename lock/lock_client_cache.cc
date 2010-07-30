@@ -7,15 +7,14 @@
 #include <iostream>
 #include <stdio.h>
 
-lock_releaser::lock_releaser(extent_client* _ec) :
-	ec(_ec) {
+lock_releaser::lock_releaser(/*extent_client* _ec*/){
 }
 
 lock_releaser::~lock_releaser() {
 }
 
 void lock_releaser::dorelease(lock_protocol::lockid_t lid) {
-	ec->flush(lid);
+	//ec->flush(lid);
 }
 
 lock_info_client::lock_info_client(lock_protocol::lockid_t _id, status _stat) :

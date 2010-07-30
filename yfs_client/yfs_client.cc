@@ -14,7 +14,7 @@
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
 	ec = new extent_client(extent_dst);
-	lock_releaser* lr = new lock_releaser(ec);
+	lock_releaser* lr = new lock_releaser(/*ec*/);
 	lc = new lock_client_cache(lock_dst,lr);
 
 }
