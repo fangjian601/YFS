@@ -39,7 +39,7 @@ struct lock_info_server {
 	friend unmarshall & operator>>(unmarshall &u, struct lock_info_server &s);
 };
 
-class lock_server_cache: public rsm_state_transfer {
+class lock_server_cache : public rsm_state_transfer {
 private:
 	class rsm *rsm;
 public:

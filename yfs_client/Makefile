@@ -15,7 +15,7 @@ all : $(BIN)
 
 $(BIN) : $(OBJS)
 	$(CXX) -o $(BIN) $(OBJS) $(LDFLAGS) $(LDLIBS)
-	
+
 $(OBJDIR)/%.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 

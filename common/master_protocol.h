@@ -10,11 +10,27 @@
 
 class master_client_protocol{
 public:
-	enum xxstatus{OK, ERR, BUSY};
+	enum xxstatus {
+		OK, NOENT, IOERR, RPCERR, EXIST, BUSY
+	};
 	typedef int status;
 	enum rpc_numbers{
+		read = 0x20001,
+		write,
+		flush,
 		open,
-		opendir
+		readlink,
+		symlink,
+		link,
+		getattr,
+		setattr,
+		readdir,
+		mkdir,
+		rmdir,
+		rename,
+		create,
+		unlink,
+		access
 	};
 };
 

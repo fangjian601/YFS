@@ -6,6 +6,10 @@
  */
 
 #include <stdio.h>
+#include <sys/stat.h>
+
+#include "rpc.h"
+#include "file_protocol.h"
 
 int
 main(int argc, char* argv[]){
