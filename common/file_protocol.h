@@ -10,6 +10,7 @@
 
 #include <string>
 #include <list>
+#include <set>
 #include <sys/stat.h>
 
 #include "rpc.h"
@@ -150,6 +151,45 @@ inline unmarshall & operator>>(unmarshall &u, std::vector<file_protocol::file_t>
 		file_protocol::file_t file;
 		u >> file;
 		s.push_back(file);
+	}
+	return u;
+}
+
+inline marshall & operator<<(marshall &m, std::set<std::string> &s){
+	m << s.size();
+	std::set<std::string>::iterator iter = s.begin();
+	for(; iter != s.end(); ++iter){
+		m << (*iter);
+	}
+	return m;
+}
+
+inline unmarshall & operator>>(unmarshall &u, std::set<std::string> &s){
+	uint size;
+	u >> size;
+	for(uint i=0; i<size; i++){
+		std::string fileserver;
+		u >> fileserver;
+		s.insert(fileserver);
+	}
+	return u;
+}
+
+inline marshall & operator<<(marshall &m, std::vector<std::string> &s){
+	m << s.size();
+	for(uint i=0; i<s.size(); i++){
+		m << s[i];
+	}
+	return m;
+}
+
+inline unmarshall & operator>>(unmarshall &u, std::vector<std::string> &s){
+	uint size;
+	u >> size;
+	for(uint i=0; i<size; i++){
+		std::string fileserver;
+		u >> fileserver;
+		s.push_back(fileserver);
 	}
 	return u;
 }

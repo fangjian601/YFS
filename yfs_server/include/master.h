@@ -37,17 +37,26 @@ private:
 	std::map<file_protocol::file_t, file_protocol::metadata> files;
 	std::map<file_protocol::file_t, std::set<std::string> > replicates;
 	std::map<std::string, fileserver_info*> fileservers;
+	std::map<std::string, rpcc*> rpcc_cache;
 
 	pthread_mutex_t fileservers_mutex;
+	pthread_mutex_t files_mutex;
 
 	master_protocol::status add_fileserver(std::string id,
 										   std::vector<file_protocol::file_t> files, int&);
 	master_protocol::status remove_fileserver(std::string id, int &);
 	master_protocol::status heartbeat(std::string id, int &);
 
-	master_client_protocol::status read(file_protocol::file_t ino, std::string& id);
-	master_client_protocol::status write(file_protocol::file_t ino, std::string& id);
-	master_client_protocol::status flush(file_protocol::file_t ino, std::string& id);
+	master_client_protocol::status read(file_protocol::file_t ino,
+										std::vector<std::string>& reps);
+	master_client_protocol::status write(file_protocol::file_t ino,
+										 std::vector<std::string>& reps);
+	master_client_protocol::status flush(file_protocol::file_t ino,
+										 std::vector<std::string>& reps);
+	master_client_protocol::status create(file_protocol::file_t parent, std::string name,
+										  mode_t mode, std::vector<std::string>& reps);
+	master_client_protocol::status unlink(file_protocol::file_t parent,
+										  std::string name, std::vector<std::string>& reps);
 	master_client_protocol::status open(file_protocol::file_t ino, int &);
 	master_client_protocol::status getattr(file_protocol::file_t ino,
 										   file_protocol::metadata& attr);
@@ -66,12 +75,10 @@ private:
 	master_client_protocol::status rename(file_protocol::file_t parent, std::string name,
 										  file_protocol::file_t newparent, std::string newname,
 										  int &);
-	master_client_protocol::status create(file_protocol::file_t parent, std::string name,
-										  mode_t mode, file_protocol::metadata& attr);
-	master_client_protocol::status unlink(file_protocol::file_t parent, std::string name, int &);
 	master_client_protocol::status access(file_protocol::file_t ino, int mask, int &);
 
 	void delete_fileserver_wo(std::string id);
+	rpcc* get_rpcc(std::string _id);
 public:
 	master(class rsm* _rsm = 0);
 	virtual ~master();

@@ -8,6 +8,8 @@
 #ifndef MASTER_PROTOCOL_H_
 #define MASTER_PROTOCOL_H_
 
+#define TIMEOUT 1000
+
 class master_client_protocol{
 public:
 	enum xxstatus {

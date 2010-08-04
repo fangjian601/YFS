@@ -34,6 +34,7 @@ public:
 	std::vector<file_protocol::file_t> get_files();
 	void set_alive(bool _alive);
 	void heartbeater();
+	friend class master;
 };
 
 #endif /* FILESERVER_INFO_H_ */
